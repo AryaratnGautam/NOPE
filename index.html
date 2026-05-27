@@ -1,142 +1,487 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <title>NOPE</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>NOPE — Reaction Arcade</title>
   <style>
-    :root{
-      --bg:#05070d;--panel:#0e1322bb;--line:#ffffff1a;--txt:#f4f7ff;--muted:#9dadcf;
-      --red:#ff3b6b;--cyan:#42f5ff;--lime:#89ff6b;--vio:#b67dff;--yel:#ffe76a;--ora:#ff9c41;
+    :root {
+      --bg: #06080f;
+      --panel: rgba(255, 255, 255, 0.08);
+      --panel-border: rgba(255, 255, 255, 0.18);
+      --text: #f5f8ff;
+      --muted: #98a2b3;
+      --danger: #ff3d5a;
+      --ok: #39f7b4;
+      --accent: #6ea8ff;
+      --shadow: 0 20px 45px rgba(0, 0, 0, 0.45);
+      --radius: 18px;
+      --tile-gap: clamp(8px, 1.4vmin, 14px);
+      --shake: 0px;
     }
-    *{box-sizing:border-box} html,body{margin:0;height:100%;overflow:hidden;background:radial-gradient(circle at 50% 20%,#111a32,var(--bg));color:var(--txt);font-family:Inter,system-ui,sans-serif}
-    .app{position:fixed;inset:0;display:grid;grid-template-rows:auto auto 1fr;gap:.55rem;padding:max(10px,env(safe-area-inset-top)) 10px 10px}
-    .hud{display:flex;justify-content:space-between;align-items:center;gap:.6rem}
-    .pill{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:.42rem .7rem;font-weight:800;font-size:.82rem;backdrop-filter:blur(4px);box-shadow:0 0 18px #ffffff14}
-    .warnWrap{text-align:center}
-    .warn{display:inline-block;background:var(--panel);border:1px solid #ffffff2a;padding:.5rem .9rem;border-radius:999px;font-size:clamp(.95rem,3.2vw,1.25rem);font-weight:900;letter-spacing:.03em;transition:.25s;box-shadow:0 0 28px #ffffff1f}
-    .grid{position:relative;border-radius:16px;background:#080c17;border:1px solid #ffffff17;overflow:hidden;touch-action:none}
-    .block{position:absolute;border:none;border-radius:13px;cursor:pointer;transform:scale(.86);opacity:0;animation:pop .16s ease forwards;box-shadow:0 0 0 transparent;transition:transform .08s ease,filter .12s ease}
-    .block:hover{transform:scale(1.04)} .block:active{transform:scale(.96)}
-    @keyframes pop{to{transform:scale(1);opacity:1}}
-    .overlay{position:fixed;inset:0;display:grid;place-items:center;background:#0000009a;opacity:0;pointer-events:none;transition:.3s}
-    .overlay.show{opacity:1;pointer-events:auto}
-    .card{width:min(360px,92vw);background:#0f162bdd;border:1px solid #ffffff2d;border-radius:16px;padding:18px;text-align:center;box-shadow:0 0 32px #ffffff22}
-    .card h1{margin:0 0 .4rem} .sub{color:var(--muted);margin:.15rem 0}
-    .btn{margin-top:12px;border:none;background:#fff;color:#0a0f1c;font-weight:900;padding:.72rem 1rem;border-radius:11px;cursor:pointer}
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; min-height: 100%; background: radial-gradient(circle at 20% 20%, #0f1330 0%, #090b17 34%, #05060d 100%); color: var(--text); font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    body { overflow: hidden; }
+
+    .app {
+      min-height: 100dvh;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      padding: clamp(10px, 2.5vmin, 20px);
+      gap: clamp(8px, 1.5vmin, 14px);
+      transform: translateX(var(--shake));
+      transition: transform 60ms linear;
+    }
+
+    .glass {
+      background: linear-gradient(140deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.05));
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+
+    .hud {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+    }
+    .hud-slot { font-weight: 600; color: var(--muted); font-size: clamp(0.76rem, 1.65vmin, 0.96rem); display: flex; gap: 8px; align-items: baseline; }
+    .hud-slot strong { color: var(--text); font-size: clamp(0.92rem, 2vmin, 1.1rem); letter-spacing: 0.02em; }
+    .hud-slot.right { justify-content: flex-end; text-align: right; }
+    .hud-time { justify-content: center; text-align: center; }
+
+    .warning-wrap {
+      display: flex;
+      justify-content: center;
+      min-height: clamp(38px, 7vmin, 64px);
+      align-items: center;
+    }
+    .warning {
+      margin: 0;
+      font-size: clamp(1.12rem, 3.6vmin, 2.05rem);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 800;
+      text-shadow: 0 0 14px rgba(255, 255, 255, 0.2);
+    }
+
+    .main {
+      display: grid;
+      place-items: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .board {
+      width: min(92vw, 720px);
+      aspect-ratio: 1;
+      max-height: 62dvh;
+      display: grid;
+      gap: var(--tile-gap);
+      padding: clamp(9px, 1.6vmin, 16px);
+      border-radius: calc(var(--radius) + 6px);
+      transition: transform 260ms ease, box-shadow 300ms ease;
+    }
+
+    .tile {
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.04);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
+      transition: transform 120ms ease, filter 120ms ease, border-color 120ms ease, background 120ms ease;
+      position: relative;
+      overflow: hidden;
+      will-change: transform, filter;
+      touch-action: manipulation;
+    }
+    .tile::after {
+      content: "";
+      position: absolute;
+      inset: -35%;
+      background: radial-gradient(circle, rgba(255, 255, 255, 0.22), transparent 62%);
+      opacity: 0;
+      transition: opacity 140ms ease;
+      pointer-events: none;
+    }
+    .tile.active { animation: pop 160ms ease-out; }
+    .tile.active::after { opacity: 0.42; }
+    .tile:hover, .tile:focus-visible { transform: translateY(-2px) scale(1.012); border-color: rgba(255,255,255,0.24); outline: none; }
+    .tile.hit { animation: hit 190ms ease; }
+    .tile.miss { animation: miss 200ms ease; }
+
+    @keyframes pop { from { transform: scale(0.84); filter: brightness(1.2);} to { transform: scale(1); } }
+    @keyframes hit { 40% { transform: scale(0.9); } 100% { transform: scale(1);} }
+    @keyframes miss { 40% { filter: brightness(0.75);} }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      padding: 12px;
+      align-items: center;
+    }
+
+    button, .chip {
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(255,255,255,0.09);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 10px 14px;
+      font-weight: 600;
+      font-size: 0.92rem;
+      cursor: pointer;
+      transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+      user-select: none;
+    }
+    button:hover, .chip:hover { transform: translateY(-1px); background: rgba(255,255,255,0.14); }
+    button:focus-visible, .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    .chip-group { display: inline-flex; gap: 8px; align-items: center; }
+    .chip.active { border-color: rgba(110, 168, 255, 0.9); box-shadow: 0 0 16px rgba(110, 168, 255, 0.32); }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(4, 6, 12, 0.72);
+      display: grid;
+      place-items: center;
+      z-index: 8;
+      padding: 18px;
+    }
+    .panel {
+      width: min(96vw, 560px);
+      padding: clamp(18px, 3vmin, 30px);
+      text-align: center;
+    }
+    .panel h1 { margin: 0 0 8px; font-size: clamp(1.65rem, 5vmin, 2.8rem); letter-spacing: 0.08em; }
+    .panel p { margin: 8px 0; color: var(--muted); }
+
+    .countdown {
+      font-size: clamp(2rem, 12vmin, 6rem);
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-shadow: 0 0 24px rgba(110,168,255,.65);
+      animation: pulse 0.9s ease infinite;
+    }
+    @keyframes pulse { 50% { transform: scale(1.08); } }
+
+    .float {
+      position: absolute;
+      font-weight: 800;
+      pointer-events: none;
+      animation: floatUp 650ms ease forwards;
+      text-shadow: 0 0 8px currentColor;
+      z-index: 6;
+    }
+    @keyframes floatUp {
+      from { opacity: 1; transform: translate(-50%, -45%) scale(0.85); }
+      to { opacity: 0; transform: translate(-50%, -120%) scale(1.08); }
+    }
+
+    .sr-only { position: absolute!important; width:1px; height:1px; margin:-1px; padding:0; border:0; overflow:hidden; clip:rect(0,0,0,0); }
+
+    @media (max-width: 700px) {
+      .hud { padding: 10px 12px; }
+      .board { width: min(96vw, 560px); max-height: 56dvh; }
+      button, .chip { padding: 9px 12px; font-size: 0.84rem; }
+    }
   </style>
 </head>
 <body>
-<div class="app">
-  <div class="hud">
-    <div class="pill" id="level">LEVEL 1</div>
-    <div class="pill" id="score">SCORE 0</div>
-    <div class="pill" id="best">BEST 0</div>
+  <div class="app" id="app">
+    <header class="hud glass">
+      <div class="hud-slot">LEVEL <strong id="level">1</strong></div>
+      <div class="hud-slot hud-time">TIME <strong id="time">30.0s</strong></div>
+      <div class="hud-slot right">SCORE <strong id="score">0</strong> · HI <strong id="high">0</strong></div>
+    </header>
+
+    <main class="main">
+      <div class="warning-wrap"><h2 class="warning" id="warning">DON'T TOUCH RED</h2></div>
+      <section class="board glass" id="board" aria-label="Game board" role="grid"></section>
+      <div class="overlay" id="overlay"></div>
+      <div class="sr-only" aria-live="polite" id="ariaStatus"></div>
+    </main>
+
+    <footer class="controls glass">
+      <span>Board:</span>
+      <div class="chip-group" id="sizeChoices">
+        <button class="chip" data-size="3x3">3×3</button>
+        <button class="chip" data-size="3x4">3×4</button>
+        <button class="chip" data-size="4x4">4×4</button>
+      </div>
+      <button id="pauseBtn" aria-label="Pause game">Pause</button>
+      <button id="restartBtn">Restart</button>
+      <button id="menuBtn">Main Menu</button>
+      <span style="color:var(--muted);font-size:.82rem">Keys: Space=Pause · R=Restart · M=Menu</span>
+    </footer>
   </div>
-  <div class="warnWrap"><div class="warn" id="warn">DON'T PRESS RED</div></div>
-  <div class="grid" id="grid"></div>
-</div>
-<div class="overlay" id="over">
-  <div class="card">
-    <h1>NOPE</h1>
-    <p class="sub" id="final">Score: 0</p>
-    <p class="sub" id="finalBest">Best: 0</p>
-    <button class="btn" id="restart">Restart</button>
-  </div>
-</div>
-<script>
-(()=>{
-  const COLORS=[['RED','#ff3b6b'],['CYAN','#42f5ff'],['LIME','#89ff6b'],['VIOLET','#b67dff'],['YELLOW','#ffe76a'],['ORANGE','#ff9c41']];
-  const el=id=>document.getElementById(id);
-  const ui={grid:el('grid'),warn:el('warn'),level:el('level'),score:el('score'),best:el('best'),over:el('over'),final:el('final'),finalBest:el('finalBest'),restart:el('restart')};
 
-  let W=0,H=0,cell=68;
-  let score=0,best=Number(localStorage.getItem('nope_best')||0),level=1,health=100;
-  let running=true,forbidden=0,spawnMs=720,switchMs=3400,ttlMs=1900,last=performance.now(),spawnAcc=0,switchAcc=0,levelAcc=0,shake=0;
-  const blocks=[];
-  ui.best.textContent='BEST '+best;
+  <script>
+    (() => {
+      const COLORS = [
+        { n: 'RED', h: 352 }, { n: 'BLUE', h: 215 }, { n: 'GREEN', h: 142 },
+        { n: 'YELLOW', h: 52 }, { n: 'PURPLE', h: 280 }, { n: 'CYAN', h: 186 }, { n: 'ORANGE', h: 26 }
+      ];
+      const MAX_ROWS = 4, MAX_COLS = 6;
+      const boardEl = document.getElementById('board');
+      const overlay = document.getElementById('overlay');
+      const levelEl = document.getElementById('level');
+      const timeEl = document.getElementById('time');
+      const scoreEl = document.getElementById('score');
+      const highEl = document.getElementById('high');
+      const warningEl = document.getElementById('warning');
+      const ariaStatus = document.getElementById('ariaStatus');
+      const pauseBtn = document.getElementById('pauseBtn');
+      const restartBtn = document.getElementById('restartBtn');
+      const menuBtn = document.getElementById('menuBtn');
+      const sizeChoices = [...document.querySelectorAll('[data-size]')];
 
-  function tone(f=420,d=.04,t='triangle',v=.03){const ac=window.__ac||(window.__ac=new (AudioContext||webkitAudioContext)());const o=ac.createOscillator(),g=ac.createGain();o.type=t;o.frequency.value=f;o.connect(g);g.connect(ac.destination);g.gain.value=v;o.start();g.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+d);o.stop(ac.currentTime+d)}
-  function rand(a,b){return Math.random()*(b-a)+a}
-  function rndI(a,b){return Math.floor(rand(a,b+1))}
+      let tiles = [], active = new Map(), raf = 0;
+      let state = {
+        scene: 'menu', level: 1, score: 0, high: Number(localStorage.getItem('nopeHigh') || 0),
+        baseRows: 3, baseCols: 3, rows: 3, cols: 3,
+        forbidden: COLORS[0], timeLeft: 30, levelDuration: 30,
+        paused: false, multiplier: 1, pressure: 0, lastSpawn: 0,
+        spawnCd: 520, lifetime: 900, forbiddenChance: 0.20, countdown: 0
+      };
 
-  function layout(){const r=ui.grid.getBoundingClientRect();W=r.width;H=r.height;cell=Math.max(52,Math.min(88,Math.floor(Math.min(W,H)/5.4)));}
-  addEventListener('resize',layout);layout();
+      highEl.textContent = state.high;
 
-  function setForbidden(i){forbidden=i;const c=COLORS[i];ui.warn.textContent="DON'T PRESS "+c[0];ui.warn.style.color=c[1];ui.warn.style.borderColor=c[1]+'88';ui.warn.style.boxShadow=`0 0 24px ${c[1]}55`;tone(560,.06,'sine',.025)}
-  setForbidden(rndI(0,COLORS.length-1));
+      function beep(type='safe') {
+        const ctx = beep.ctx || (beep.ctx = new (window.AudioContext || window.webkitAudioContext)());
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = type === 'danger' ? 'sawtooth' : 'triangle';
+        o.frequency.value = type === 'danger' ? 120 : type === 'level' ? 540 : 700;
+        g.gain.value = 0.0001;
+        o.connect(g); g.connect(ctx.destination); o.start();
+        const t = ctx.currentTime;
+        g.gain.exponentialRampToValueAtTime(type === 'danger' ? 0.08 : 0.045, t + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + (type === 'danger' ? 0.22 : 0.11));
+        o.frequency.exponentialRampToValueAtTime(type === 'danger' ? 65 : type === 'level' ? 800 : 500, t + 0.1);
+        o.stop(t + 0.23);
+      }
 
-  function spawnBlock(){
-    const c=rndI(0,COLORS.length-1); const size=Math.floor(cell*rand(.78,1.12));
-    const x=rand(8,Math.max(10,W-size-8)), y=rand(8,Math.max(10,H-size-8));
-    blocks.push({x,y,w:size,h:size,c,life:ttlMs,id:Math.random().toString(36).slice(2)});
-  }
+      function setBoardSize(rows, cols) {
+        state.rows = rows; state.cols = cols;
+        boardEl.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+        boardEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+        const count = rows * cols;
+        boardEl.innerHTML = '';
+        tiles = Array.from({ length: count }, (_, i) => {
+          const b = document.createElement('button');
+          b.className = 'tile'; b.type = 'button'; b.dataset.i = i;
+          b.setAttribute('role','gridcell');
+          b.setAttribute('aria-label', `Tile ${i+1}`);
+          boardEl.appendChild(b); return b;
+        });
+      }
 
-  function removeBlock(id){const i=blocks.findIndex(b=>b.id===id); if(i>=0)blocks.splice(i,1);}
+      function pickForbidden() {
+        state.forbidden = COLORS[(Math.random() * COLORS.length) | 0];
+        warningEl.textContent = `DON'T TOUCH ${state.forbidden.n}`;
+        warningEl.style.color = `hsl(${state.forbidden.h} 96% 68%)`;
+        warningEl.style.textShadow = `0 0 18px hsl(${state.forbidden.h} 100% 62% / .6)`;
+      }
 
-  function clickBlock(b){
-    if(!running)return;
-    if(b.c===forbidden){gameOver(); return;}
-    score += 8 + level; health=Math.min(100,health+1.5); shake=Math.max(0,shake-0.5);
-    tone(350+level*8,.03,'triangle',.02);
-    removeBlock(b.id);
-    renderHUD();
-  }
+      function scaleBoardForLevel() {
+        const extra = Math.floor((state.level - 1) / 2);
+        const growRows = Math.min(MAX_ROWS, state.baseRows + Math.floor(extra / 2));
+        const growCols = Math.min(MAX_COLS, state.baseCols + extra);
+        setBoardSize(growRows, growCols);
+      }
 
-  function gameOver(){
-    running=false; shake=10; tone(130,.22,'sawtooth',.07);
-    if(score>best){best=score;localStorage.setItem('nope_best',best);} ui.best.textContent='BEST '+best;
-    ui.final.textContent='Score: '+score; ui.finalBest.textContent='Best: '+best; ui.over.classList.add('show');
-  }
+      function levelParams() {
+        const p = state.level - 1;
+        state.levelDuration = 30 + p * 15;
+        state.timeLeft = state.levelDuration;
+        state.spawnCd = Math.max(170, 520 - p * 32);
+        state.lifetime = Math.max(270, 900 - p * 48);
+        state.forbiddenChance = Math.min(0.55, 0.2 + p * 0.035);
+        state.pressure = Math.min(1, p / 10);
+        state.multiplier = Math.max(1, state.multiplier);
+      }
 
-  function restart(){
-    score=0;level=1;health=100;running=true;spawnMs=720;switchMs=3400;ttlMs=1900;spawnAcc=switchAcc=levelAcc=0;shake=0;blocks.length=0;
-    setForbidden(rndI(0,COLORS.length-1)); ui.over.classList.remove('show'); renderHUD();
-  }
+      function activateTile(now) {
+        const idx = (Math.random() * tiles.length) | 0;
+        if (active.has(idx)) return;
+        const forbidden = Math.random() < state.forbiddenChance;
+        let color = forbidden ? state.forbidden : COLORS[(Math.random() * COLORS.length) | 0];
+        if (!forbidden) while (color.n === state.forbidden.n) color = COLORS[(Math.random() * COLORS.length) | 0];
+        const life = Math.max(160, state.lifetime * (1 - state.pressure * 0.42));
 
-  function renderHUD(){ui.score.textContent='SCORE '+score;ui.level.textContent='LEVEL '+level;ui.best.textContent='BEST '+best;}
+        active.set(idx, { forbidden, color, expires: now + life });
+        const tile = tiles[idx];
+        tile.classList.add('active');
+        tile.style.background = `radial-gradient(circle at 30% 25%, hsl(${color.h} 98% 72%), hsl(${color.h} 90% 40%))`;
+        tile.style.boxShadow = `0 0 20px hsl(${color.h} 100% 56% / .58), inset 0 0 20px hsl(${color.h} 100% 70% / .3)`;
+      }
 
-  function draw(){
-    ui.grid.style.transform=`translate(${(Math.random()-.5)*shake}px,${(Math.random()-.5)*shake}px)`;
-    ui.grid.innerHTML='';
-    for(const b of blocks){
-      const e=document.createElement('button');e.className='block';
-      const col=COLORS[b.c][1];
-      e.style.left=b.x+'px';e.style.top=b.y+'px';e.style.width=b.w+'px';e.style.height=b.h+'px';
-      e.style.background=col;e.style.boxShadow=`0 0 18px ${col}88`;
-      e.onpointerdown=(ev)=>{ev.preventDefault();clickBlock(b)};
-      ui.grid.appendChild(e);
-    }
-  }
+      function clearTile(idx, missed=false) {
+        const tile = tiles[idx];
+        tile.classList.remove('active');
+        tile.style.background = 'rgba(255,255,255,.04)';
+        tile.style.boxShadow = 'inset 0 0 0 1px rgba(255,255,255,.03)';
+        if (missed) {
+          tile.classList.remove('miss'); void tile.offsetWidth; tile.classList.add('miss');
+        }
+        active.delete(idx);
+      }
 
-  function tick(t){
-    const dt=Math.min(33,t-last); last=t;
-    if(running){
-      spawnAcc += dt; switchAcc += dt; levelAcc += dt;
-      if(spawnAcc>=spawnMs){spawnAcc=0;spawnBlock();if(Math.random()<0.28+level*0.01)spawnBlock();}
-      if(switchAcc>=switchMs){switchAcc=0;let n=rndI(0,COLORS.length-1);if(n===forbidden)n=(n+1)%COLORS.length;setForbidden(n)}
-      if(levelAcc>=15000){levelAcc=0;level++;spawnMs=Math.max(170,spawnMs*0.88);switchMs=Math.max(1100,switchMs*0.91);ttlMs=Math.max(700,ttlMs*0.93);tone(720,.08,'square',.03);}
+      function floating(text, x, y, bad=false) {
+        const d = document.createElement('div');
+        d.className = 'float'; d.textContent = text; d.style.left = `${x}px`; d.style.top = `${y}px`;
+        d.style.color = bad ? 'var(--danger)' : 'var(--ok)';
+        boardEl.parentElement.appendChild(d); setTimeout(() => d.remove(), 700);
+      }
 
-      for(let i=blocks.length-1;i>=0;i--){blocks[i].life-=dt; if(blocks[i].life<=0){if(blocks[i].c!==forbidden){score=Math.max(0,score-6);health-=8;} removeBlock(blocks[i].id);}}
-      health-=dt*0.0018*level;
-      if(health<=0)gameOver();
+      function hitTile(i, clientX, clientY) {
+        if (state.scene !== 'playing' || state.paused) return;
+        const data = active.get(i); if (!data) return;
+        const tile = tiles[i];
+        tile.classList.remove('hit'); void tile.offsetWidth; tile.classList.add('hit');
 
-      score += dt*0.006;
-      shake*=0.9;
-      renderHUD();
-      ui.warn.style.filter=`drop-shadow(0 0 ${8+Math.sin(t*0.01)*6}px ${COLORS[forbidden][1]})`;
-      ui.grid.style.background=`radial-gradient(circle at 50% 20%,#101a31,#080c17)`;
-    }
-    draw();
-    requestAnimationFrame(tick);
-  }
+        if (data.forbidden) {
+          beep('danger'); gameOver('You touched forbidden color'); return;
+        }
+        beep('safe');
+        const gain = Math.round(10 * state.multiplier);
+        state.score += gain; state.multiplier = Math.min(9, state.multiplier + 0.1);
+        floating(`+${gain}`, clientX, clientY);
+        clearTile(i);
+        updateHUD();
+      }
 
-  ui.restart.onclick=restart;
-  ui.grid.addEventListener('pointerdown',()=>{if(window.__ac&&window.__ac.state==='suspended')window.__ac.resume()});
+      function updateHUD() {
+        levelEl.textContent = state.level;
+        timeEl.textContent = `${Math.max(0, state.timeLeft).toFixed(1)}s`;
+        scoreEl.textContent = Math.round(state.score);
+        if (state.score > state.high) {
+          state.high = Math.round(state.score); localStorage.setItem('nopeHigh', String(state.high));
+          highEl.textContent = state.high;
+        }
+      }
 
-  renderHUD();
-  requestAnimationFrame(tick);
-})();
-</script>
+      function step(ts) {
+        if (!step.last) step.last = ts;
+        const dt = Math.min(0.05, (ts - step.last) / 1000); step.last = ts;
+
+        if (state.scene === 'playing' && !state.paused) {
+          state.timeLeft -= dt;
+          if (state.timeLeft <= 0) {
+            state.level++; beep('level'); nextLevel();
+          }
+          const pressureNow = 1 - Math.max(0, state.timeLeft) / state.levelDuration;
+          const spawnCd = state.spawnCd * (1 - pressureNow * 0.45);
+          if (ts - state.lastSpawn > spawnCd) {
+            state.lastSpawn = ts;
+            activateTile(ts);
+          }
+
+          for (const [i, data] of active) {
+            if (ts >= data.expires) {
+              if (!data.forbidden) state.multiplier = Math.max(1, state.multiplier - 0.15);
+              clearTile(i, !data.forbidden);
+            }
+          }
+          document.documentElement.style.setProperty('--shake', `${Math.sin(ts/50) * (pressureNow * 0.45)}px`);
+          boardEl.style.transform = `scale(${1 + pressureNow * 0.012})`;
+          updateHUD();
+        }
+        raf = requestAnimationFrame(step);
+      }
+
+      function showOverlay(html) { overlay.innerHTML = `<div class="panel glass">${html}</div>`; overlay.hidden = false; }
+      function hideOverlay() { overlay.hidden = true; }
+
+      function countdownThenStart() {
+        state.scene = 'countdown';
+        let n = 3;
+        showOverlay(`<div class="countdown" id="countEl">${n}</div><p>Stay focused.</p>`);
+        const countEl = document.getElementById('countEl');
+        const tick = () => {
+          if (state.scene !== 'countdown') return;
+          n--;
+          if (n <= 0) {
+            hideOverlay(); state.scene = 'playing'; state.paused = false; ariaStatus.textContent = 'Level live'; return;
+          }
+          countEl.textContent = n; beep('level'); setTimeout(tick, 750);
+        };
+        setTimeout(tick, 750);
+      }
+
+      function nextLevel() {
+        active.forEach((_, i) => clearTile(i));
+        scaleBoardForLevel(); levelParams(); pickForbidden(); updateHUD();
+        showOverlay(`<h1>Level ${state.level}</h1><p>Survive ${state.levelDuration}s</p><p>Forbidden appearances increased.</p>`);
+        setTimeout(countdownThenStart, 850);
+      }
+
+      function gameOver(reason) {
+        state.scene = 'gameover'; state.paused = true;
+        active.forEach((_, i) => clearTile(i));
+        let shakes = 12;
+        const iv = setInterval(() => {
+          document.documentElement.style.setProperty('--shake', `${(Math.random()-0.5)*8}px`);
+          if (--shakes < 1) { clearInterval(iv); document.documentElement.style.setProperty('--shake', '0px'); }
+        }, 30);
+        showOverlay(`<h1>NOPE</h1><p>${reason}</p><p>Score: <strong>${Math.round(state.score)}</strong></p><p>Reached Level ${state.level}</p><div style="display:flex;gap:10px;justify-content:center;margin-top:10px"><button id="playAgain">Play Again</button><button id="toMenu">Menu</button></div>`);
+        document.getElementById('playAgain').onclick = () => startRun();
+        document.getElementById('toMenu').onclick = () => openMenu();
+      }
+
+      function openMenu() {
+        state.scene = 'menu'; state.paused = true;
+        showOverlay(`<h1>NOPE</h1><p>Click only safe colors. Touch forbidden color = instant game over.</p><p>Choose board size and start surviving.</p><button id="startBtn">Start Run</button>`);
+        document.getElementById('startBtn').onclick = () => startRun();
+      }
+
+      function startRun() {
+        state.level = 1; state.score = 0; state.multiplier = 1; state.lastSpawn = 0;
+        scaleBoardForLevel(); levelParams(); pickForbidden(); updateHUD();
+        countdownThenStart();
+      }
+
+      boardEl.addEventListener('pointerdown', (e) => {
+        const tile = e.target.closest('.tile'); if (!tile) return;
+        hitTile(Number(tile.dataset.i), e.clientX, e.clientY);
+      });
+
+      sizeChoices.forEach(btn => btn.addEventListener('click', () => {
+        sizeChoices.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const [r,c] = btn.dataset.size.split('x').map(Number);
+        state.baseRows = r; state.baseCols = c;
+        if (state.scene === 'menu') setBoardSize(r,c);
+      }));
+      sizeChoices[0].classList.add('active');
+
+      pauseBtn.onclick = () => {
+        if (state.scene !== 'playing' && state.scene !== 'paused') return;
+        state.paused = !state.paused;
+        state.scene = state.paused ? 'paused' : 'playing';
+        pauseBtn.textContent = state.paused ? 'Resume' : 'Pause';
+        if (state.paused) showOverlay('<h1>Paused</h1><p>Press Resume, Space, or tap Pause again.</p>');
+        else hideOverlay();
+      };
+      restartBtn.onclick = () => startRun();
+      menuBtn.onclick = () => openMenu();
+
+      window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') { e.preventDefault(); pauseBtn.click(); }
+        if (e.key.toLowerCase() === 'r') restartBtn.click();
+        if (e.key.toLowerCase() === 'm') menuBtn.click();
+      });
+
+      setBoardSize(3,3); openMenu(); updateHUD();
+      raf = requestAnimationFrame(step);
+      window.addEventListener('beforeunload', () => cancelAnimationFrame(raf));
+    })();
+  </script>
 </body>
 </html>
