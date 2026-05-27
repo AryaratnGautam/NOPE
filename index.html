@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+  <title>NOPE</title>
+  <style>
+    :root{
+      --bg:#05070d;--panel:#0e1322bb;--line:#ffffff1a;--txt:#f4f7ff;--muted:#9dadcf;
+      --red:#ff3b6b;--cyan:#42f5ff;--lime:#89ff6b;--vio:#b67dff;--yel:#ffe76a;--ora:#ff9c41;
+    }
+    *{box-sizing:border-box} html,body{margin:0;height:100%;overflow:hidden;background:radial-gradient(circle at 50% 20%,#111a32,var(--bg));color:var(--txt);font-family:Inter,system-ui,sans-serif}
+    .app{position:fixed;inset:0;display:grid;grid-template-rows:auto auto 1fr;gap:.55rem;padding:max(10px,env(safe-area-inset-top)) 10px 10px}
+    .hud{display:flex;justify-content:space-between;align-items:center;gap:.6rem}
+    .pill{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:.42rem .7rem;font-weight:800;font-size:.82rem;backdrop-filter:blur(4px);box-shadow:0 0 18px #ffffff14}
+    .warnWrap{text-align:center}
+    .warn{display:inline-block;background:var(--panel);border:1px solid #ffffff2a;padding:.5rem .9rem;border-radius:999px;font-size:clamp(.95rem,3.2vw,1.25rem);font-weight:900;letter-spacing:.03em;transition:.25s;box-shadow:0 0 28px #ffffff1f}
+    .grid{position:relative;border-radius:16px;background:#080c17;border:1px solid #ffffff17;overflow:hidden;touch-action:none}
+    .block{position:absolute;border:none;border-radius:13px;cursor:pointer;transform:scale(.86);opacity:0;animation:pop .16s ease forwards;box-shadow:0 0 0 transparent;transition:transform .08s ease,filter .12s ease}
+    .block:hover{transform:scale(1.04)} .block:active{transform:scale(.96)}
+    @keyframes pop{to{transform:scale(1);opacity:1}}
+    .overlay{position:fixed;inset:0;display:grid;place-items:center;background:#0000009a;opacity:0;pointer-events:none;transition:.3s}
+    .overlay.show{opacity:1;pointer-events:auto}
+    .card{width:min(360px,92vw);background:#0f162bdd;border:1px solid #ffffff2d;border-radius:16px;padding:18px;text-align:center;box-shadow:0 0 32px #ffffff22}
+    .card h1{margin:0 0 .4rem} .sub{color:var(--muted);margin:.15rem 0}
+    .btn{margin-top:12px;border:none;background:#fff;color:#0a0f1c;font-weight:900;padding:.72rem 1rem;border-radius:11px;cursor:pointer}
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="hud">
+    <div class="pill" id="level">LEVEL 1</div>
+    <div class="pill" id="score">SCORE 0</div>
+    <div class="pill" id="best">BEST 0</div>
+  </div>
+  <div class="warnWrap"><div class="warn" id="warn">DON'T PRESS RED</div></div>
+  <div class="grid" id="grid"></div>
+</div>
+<div class="overlay" id="over">
+  <div class="card">
+    <h1>NOPE</h1>
+    <p class="sub" id="final">Score: 0</p>
+    <p class="sub" id="finalBest">Best: 0</p>
+    <button class="btn" id="restart">Restart</button>
+  </div>
+</div>
+<script>
+(()=>{
+  const COLORS=[['RED','#ff3b6b'],['CYAN','#42f5ff'],['LIME','#89ff6b'],['VIOLET','#b67dff'],['YELLOW','#ffe76a'],['ORANGE','#ff9c41']];
+  const el=id=>document.getElementById(id);
+  const ui={grid:el('grid'),warn:el('warn'),level:el('level'),score:el('score'),best:el('best'),over:el('over'),final:el('final'),finalBest:el('finalBest'),restart:el('restart')};
+
+  let W=0,H=0,cell=68;
+  let score=0,best=Number(localStorage.getItem('nope_best')||0),level=1,health=100;
+  let running=true,forbidden=0,spawnMs=720,switchMs=3400,ttlMs=1900,last=performance.now(),spawnAcc=0,switchAcc=0,levelAcc=0,shake=0;
+  const blocks=[];
+  ui.best.textContent='BEST '+best;
+
+  function tone(f=420,d=.04,t='triangle',v=.03){const ac=window.__ac||(window.__ac=new (AudioContext||webkitAudioContext)());const o=ac.createOscillator(),g=ac.createGain();o.type=t;o.frequency.value=f;o.connect(g);g.connect(ac.destination);g.gain.value=v;o.start();g.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+d);o.stop(ac.currentTime+d)}
+  function rand(a,b){return Math.random()*(b-a)+a}
+  function rndI(a,b){return Math.floor(rand(a,b+1))}
+
+  function layout(){const r=ui.grid.getBoundingClientRect();W=r.width;H=r.height;cell=Math.max(52,Math.min(88,Math.floor(Math.min(W,H)/5.4)));}
+  addEventListener('resize',layout);layout();
+
+  function setForbidden(i){forbidden=i;const c=COLORS[i];ui.warn.textContent="DON'T PRESS "+c[0];ui.warn.style.color=c[1];ui.warn.style.borderColor=c[1]+'88';ui.warn.style.boxShadow=`0 0 24px ${c[1]}55`;tone(560,.06,'sine',.025)}
+  setForbidden(rndI(0,COLORS.length-1));
+
+  function spawnBlock(){
+    const c=rndI(0,COLORS.length-1); const size=Math.floor(cell*rand(.78,1.12));
+    const x=rand(8,Math.max(10,W-size-8)), y=rand(8,Math.max(10,H-size-8));
+    blocks.push({x,y,w:size,h:size,c,life:ttlMs,id:Math.random().toString(36).slice(2)});
+  }
+
+  function removeBlock(id){const i=blocks.findIndex(b=>b.id===id); if(i>=0)blocks.splice(i,1);}
+
+  function clickBlock(b){
+    if(!running)return;
+    if(b.c===forbidden){gameOver(); return;}
+    score += 8 + level; health=Math.min(100,health+1.5); shake=Math.max(0,shake-0.5);
+    tone(350+level*8,.03,'triangle',.02);
+    removeBlock(b.id);
+    renderHUD();
+  }
+
+  function gameOver(){
+    running=false; shake=10; tone(130,.22,'sawtooth',.07);
+    if(score>best){best=score;localStorage.setItem('nope_best',best);} ui.best.textContent='BEST '+best;
+    ui.final.textContent='Score: '+score; ui.finalBest.textContent='Best: '+best; ui.over.classList.add('show');
+  }
+
+  function restart(){
+    score=0;level=1;health=100;running=true;spawnMs=720;switchMs=3400;ttlMs=1900;spawnAcc=switchAcc=levelAcc=0;shake=0;blocks.length=0;
+    setForbidden(rndI(0,COLORS.length-1)); ui.over.classList.remove('show'); renderHUD();
+  }
+
+  function renderHUD(){ui.score.textContent='SCORE '+score;ui.level.textContent='LEVEL '+level;ui.best.textContent='BEST '+best;}
+
+  function draw(){
+    ui.grid.style.transform=`translate(${(Math.random()-.5)*shake}px,${(Math.random()-.5)*shake}px)`;
+    ui.grid.innerHTML='';
+    for(const b of blocks){
+      const e=document.createElement('button');e.className='block';
+      const col=COLORS[b.c][1];
+      e.style.left=b.x+'px';e.style.top=b.y+'px';e.style.width=b.w+'px';e.style.height=b.h+'px';
+      e.style.background=col;e.style.boxShadow=`0 0 18px ${col}88`;
+      e.onpointerdown=(ev)=>{ev.preventDefault();clickBlock(b)};
+      ui.grid.appendChild(e);
+    }
+  }
+
+  function tick(t){
+    const dt=Math.min(33,t-last); last=t;
+    if(running){
+      spawnAcc += dt; switchAcc += dt; levelAcc += dt;
+      if(spawnAcc>=spawnMs){spawnAcc=0;spawnBlock();if(Math.random()<0.28+level*0.01)spawnBlock();}
+      if(switchAcc>=switchMs){switchAcc=0;let n=rndI(0,COLORS.length-1);if(n===forbidden)n=(n+1)%COLORS.length;setForbidden(n)}
+      if(levelAcc>=15000){levelAcc=0;level++;spawnMs=Math.max(170,spawnMs*0.88);switchMs=Math.max(1100,switchMs*0.91);ttlMs=Math.max(700,ttlMs*0.93);tone(720,.08,'square',.03);}
+
+      for(let i=blocks.length-1;i>=0;i--){blocks[i].life-=dt; if(blocks[i].life<=0){if(blocks[i].c!==forbidden){score=Math.max(0,score-6);health-=8;} removeBlock(blocks[i].id);}}
+      health-=dt*0.0018*level;
+      if(health<=0)gameOver();
+
+      score += dt*0.006;
+      shake*=0.9;
+      renderHUD();
+      ui.warn.style.filter=`drop-shadow(0 0 ${8+Math.sin(t*0.01)*6}px ${COLORS[forbidden][1]})`;
+      ui.grid.style.background=`radial-gradient(circle at 50% 20%,#101a31,#080c17)`;
+    }
+    draw();
+    requestAnimationFrame(tick);
+  }
+
+  ui.restart.onclick=restart;
+  ui.grid.addEventListener('pointerdown',()=>{if(window.__ac&&window.__ac.state==='suspended')window.__ac.resume()});
+
+  renderHUD();
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
